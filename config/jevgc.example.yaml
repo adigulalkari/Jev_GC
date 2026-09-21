@@ -1,0 +1,28 @@
+# Copy to jevgc.yaml and fill in / export JEV_API_KEY instead of inlining it.
+# Full field reference: see SPEC.md §4.1.
+
+jev:
+  api_key: ${JEV_API_KEY}
+  base_url: https://api.typesafe.ai/v1
+  timeout_seconds: 2.0
+  max_retries: 2
+
+prefilter:
+  keep_last_n_turns: 3
+  drop_zero_output_after_turns: 10
+
+scorer:
+  batch_max_size: 50
+  batch_max_wait_ms: 200
+
+policy:
+  relevance_keep_threshold: 0.35
+  min_confidence_to_drop: 0.6
+  error_default_treatment: keep_error_summary_only
+
+store:
+  backend: memory
+  sqlite_path: null
+
+telemetry:
+  emit_self_metrics: true
