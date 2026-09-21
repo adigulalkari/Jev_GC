@@ -1,7 +1,7 @@
 # Strands dummy agent example
 
 A small, runnable [Strands Agents](https://strandsagents.com) agent, backed
-by Gemini (`gemini-2.0-flash`), with three tools that do real work:
+by Gemini (`gemini-3.6-flash`), with three tools that do real work:
 
 | Tool | What it actually does |
 |---|---|
@@ -42,7 +42,7 @@ main [`README.md`](../../README.md#does-this-actually-matter).
 
 ## Notes
 
-- This example is free-tier friendly by design: 4 turns, `gemini-2.0-flash`,
+- This example is free-tier friendly by design: 4 turns, `gemini-3.6-flash`,
   and Jev at ~$0.042/M input tokens -- a full run costs a fraction of a
   cent.
 - If `JEV_API_KEY` is unset, `build_jevgc()` falls back to

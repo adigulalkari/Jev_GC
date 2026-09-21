@@ -15,7 +15,7 @@ Run:
     export GEMINI_API_KEY=...   # required -- this example needs a real LLM
     python examples/strands_dummy_agent/dummy_agent.py
 
-Uses Gemini's `gemini-2.0-flash` model (fast + free-tier friendly) and
+Uses Gemini's `gemini-3.6-flash` model (fast + free-tier friendly) and
 keeps the whole run to a handful of turns since the free tier is rate
 limited -- this is a demo, not a load test.
 """
@@ -30,7 +30,6 @@ import re
 from pathlib import Path
 
 import httpx
-from opentelemetry.sdk.trace import TracerProvider
 from strands import Agent, tool
 from strands.models.gemini import GeminiModel
 from strands.telemetry import StrandsTelemetry
@@ -120,7 +119,7 @@ def search_docs(query: str) -> str:
 def build_agent() -> Agent:
     model = GeminiModel(
         client_args={"api_key": os.environ["GEMINI_API_KEY"]},
-        model_id="gemini-2.0-flash",
+        model_id="gemini-3.6-flash",
     )
     return Agent(
         model=model,
@@ -158,11 +157,14 @@ async def main() -> None:
     if "GEMINI_API_KEY" not in os.environ:
         raise SystemExit("Set GEMINI_API_KEY to run this example (see module docstring).")
 
-    provider = TracerProvider()
-    StrandsTelemetry(tracer_provider=provider)
+    # StrandsTelemetry(), called with no tracer_provider, both creates a
+    # TracerProvider *and* registers it as the OTel global -- Strands' own
+    # Agent binds its tracer to whatever the global provider is at agent-
+    # construction time, so this has to happen before build_agent() below.
+    telemetry = StrandsTelemetry()
 
     gc = build_jevgc()
-    gc.attach_to_tracer_provider(provider)
+    gc.attach_to_tracer_provider(telemetry.tracer_provider)
 
     agent = build_agent()
 
