@@ -41,6 +41,12 @@ from jevgc.jev_client.fakes import FakeJevClient
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _SUBPROCESS_TIMEOUT_S = 30
+#: Strands' model-provider retry logic can silently swallow a fast, explicit
+#: API error (e.g. a 429) and keep retrying well past any reasonable wait --
+#: observed hanging indefinitely against both Gemini and Mistral free tiers
+#: rather than surfacing the underlying error. Bounding each turn here turns
+#: that into a clear, actionable timeout instead of an indefinite hang.
+_TURN_TIMEOUT_S = 45
 
 
 def _run(args: list[str], cwd: Path = REPO_ROOT) -> tuple[int, str]:
@@ -178,8 +184,14 @@ async def main() -> None:
         print(f"\n=== turn {turn}: {prompt}")
         gc.advance_turn(turn)
         try:
-            response = await agent.invoke_async(prompt)
+            response = await asyncio.wait_for(agent.invoke_async(prompt), timeout=_TURN_TIMEOUT_S)
             print(f"agent: {response}")
+        except asyncio.TimeoutError:  # noqa: UP041 -- asyncio.TimeoutError, not builtins.TimeoutError, for py3.10 compat
+            print(
+                f"agent turn timed out after {_TURN_TIMEOUT_S}s (continuing) -- this usually means "
+                "the model provider is stuck retrying a rate-limit error rather than raising it; "
+                "check your MISTRAL_API_KEY's plan/billing status at console.mistral.ai"
+            )
         except Exception as exc:  # noqa: BLE001 - demo script, keep going on tool/model errors
             print(f"agent turn raised (continuing): {exc}")
 
