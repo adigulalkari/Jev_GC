@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from jevgc.config import JevGCConfig
-from jevgc.context_builder import assemble_context, build_context_item
+from jevgc.context_builder import assemble_context, build_context_item, full_content_tokens
 from jevgc.jev_client.client import HTTPJevClient, JevClient
 from jevgc.models import GCDecision, SpanRecord, Tier, Treatment
 from jevgc.policy import BudgetAllocator, DecisionPolicy
@@ -134,7 +134,7 @@ class JevGC:
 
         item = build_context_item(span, decision)
         self._store.put(item)
-        self._telemetry.record_decision(decision, item.token_count)
+        self._telemetry.record_decision(decision, item.token_count, full_content_tokens(span))
         return decision
 
     def pin(self, span_id: str) -> None:

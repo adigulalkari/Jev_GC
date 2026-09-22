@@ -74,7 +74,15 @@ async def test_investigation_scenario_dead_end_error_and_duplicate(make_span):
         span_id="relevant", turn_index=0, output_preview="ERP total: $4521.00", output_token_count=200
     )
     dead_end_span = make_span(
-        span_id="deadend", turn_index=0, output_preview="unrelated warehouse SKU listing", output_token_count=200
+        span_id="deadend",
+        turn_index=0,
+        # Realistically-sized (not a one-liner) so a DROP's pointer text is
+        # actually smaller than the source, exercising tokens_saved_estimate
+        # meaningfully -- a tiny fixture can make a pointer/label cost as
+        # much as the content it replaces, which is a real but different
+        # thing to test (see test_telemetry.py's short-content cases).
+        output_preview="unrelated warehouse SKU listing: " + ", ".join(f"SKU-{i}" for i in range(40)),
+        output_token_count=200,
     )
     error_span = make_span(
         span_id="erroring",
@@ -99,6 +107,10 @@ async def test_investigation_scenario_dead_end_error_and_duplicate(make_span):
     stats = gc.stats()
     assert stats.spans_processed == 3
     assert stats.jev_calls == 3
+    # dead_end_span was dropped from the prompt entirely -- its full content
+    # (a ~50-token line) should show up as savings, not as rendered tokens.
+    assert stats.tokens_saved_estimate > 0
+    assert stats.tokens_full_content > stats.tokens_rendered
 
 
 @pytest.mark.asyncio

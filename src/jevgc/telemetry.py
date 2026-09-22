@@ -25,6 +25,15 @@ class GCStats(BaseModel):
     jev_calls: int = 0
     jev_call_errors: int = 0
     tokens_rendered: int = 0
+    #: Cumulative naive/no-GC baseline: what every span's full, verbatim
+    #: content would have cost, decision by decision, had jev-gc never
+    #: compressed or evicted anything (SPEC.md's non-goal is summarization,
+    #: but this is the number that motivates the whole library -- see
+    #: README "does this actually matter").
+    tokens_full_content: int = 0
+    #: tokens_full_content - tokens_rendered, running. The headline
+    #: "tokens saved" stat.
+    tokens_saved_estimate: int = 0
 
 
 class JevGCTelemetry:
@@ -42,6 +51,7 @@ class JevGCTelemetry:
         self._meter: Meter | None = None
         self._span_counter: Counter | None = None
         self._token_counter: Counter | None = None
+        self._full_content_token_counter: Counter | None = None
 
         if emit_self_metrics:
             self._init_otel_instruments()
@@ -56,10 +66,16 @@ class JevGCTelemetry:
         self._token_counter = self._meter.create_counter(
             "jevgc.tokens_rendered", description="Tokens rendered into assembled context"
         )
+        self._full_content_token_counter = self._meter.create_counter(
+            "jevgc.tokens_full_content",
+            description="Naive/no-GC baseline: full verbatim content tokens per span",
+        )
 
-    def record_decision(self, decision: GCDecision, token_count: int) -> None:
+    def record_decision(self, decision: GCDecision, token_count: int, full_token_count: int) -> None:
         self._stats.spans_processed += 1
         self._stats.tokens_rendered += token_count
+        self._stats.tokens_full_content += full_token_count
+        self._stats.tokens_saved_estimate += max(0, full_token_count - token_count)
 
         if decision.tier == Tier.HOT:
             self._stats.spans_kept_hot += 1
@@ -71,9 +87,15 @@ class JevGCTelemetry:
         if decision.used_jev:
             self._stats.jev_calls += 1
 
-        if self._emit_self_metrics and self._span_counter is not None and self._token_counter is not None:
+        if (
+            self._emit_self_metrics
+            and self._span_counter is not None
+            and self._token_counter is not None
+            and self._full_content_token_counter is not None
+        ):
             self._span_counter.add(1, {"tier": decision.tier.value})
             self._token_counter.add(token_count, {"tier": decision.tier.value})
+            self._full_content_token_counter.add(full_token_count, {"tier": decision.tier.value})
 
     def record_jev_error(self) -> None:
         self._stats.jev_call_errors += 1
