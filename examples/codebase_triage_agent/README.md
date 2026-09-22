@@ -12,12 +12,11 @@ read.
 | `git_log(path, max_commits)` | Real `git log` for a file/dir |
 | `run_pytest(test_path)` | Actually runs a test file with pytest and reports pass/fail |
 
-Compare with [`examples/strands_dummy_agent/`](../strands_dummy_agent/):
-that demo is 4 short turns and barely touches Jev (1 call out of 27
-spans) because almost everything stays inside the recency window. This
-example runs a longer, denser investigation (4 multi-tool-call turns
-against real source/tests/history) with a tighter `keep_last_n_turns=1`,
-so more spans land in the genuinely-ambiguous bucket jev-gc sends to Jev.
+Tuned with a tight `keep_last_n_turns=1` so, across a real multi-turn
+investigation (real source/tests/history, not one-liners), more spans
+land in the genuinely-ambiguous bucket jev-gc actually sends to Jev,
+rather than everything getting resolved for free by the recency window
+alone.
 
 ## Run it
 

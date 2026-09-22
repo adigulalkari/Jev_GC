@@ -1,13 +1,11 @@
 """A Mistral-backed bug-triage agent that investigates real bug reports
 against *this actual repository* -- jev-gc's own source, tests, and git
-history. Unlike the weather-demo example, every tool call here operates
-on real, non-trivial content (source files, git log, pytest output), so a
-session naturally produces the things jev-gc exists to manage: irrelevant
-grep hits, dead-end file reads, and real tool failures, across enough
-turns that the deterministic pre-filter alone can't resolve everything --
-this is where Jev's relevance/treatment judgment actually earns its keep
-(contrast with examples/strands_dummy_agent/, where a 4-turn demo barely
-touches Jev at all).
+history. Every tool call here operates on real, non-trivial content
+(source files, git log, pytest output), so a session naturally produces
+the things jev-gc exists to manage: irrelevant grep hits, dead-end file
+reads, and real tool failures, across enough turns that the deterministic
+pre-filter alone can't resolve everything -- this is where Jev's
+relevance/treatment judgment actually earns its keep.
 
 Tools are real subprocess/filesystem calls against this repo -- no
 mocking, no fabricated data:

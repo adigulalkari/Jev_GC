@@ -45,18 +45,12 @@ them by 0.30. Reproduce it: `export JEV_API_KEY=... && python scripts/relevance_
 
 ## Real run
 
-[`examples/strands_dummy_agent/`](./examples/strands_dummy_agent/): a
-Gemini-backed Strands agent with real tools (live weather, calculator,
-docs search), 4 turns, through jev-gc end to end against the live Jev API:
-
-```
-spans_processed: 27   spans_kept_hot: 26   spans_kept_warm: 1
-jev_calls: 1           jev_call_errors: 0
-```
-
-Most spans resolved free via the pre-filter, as designed — the ambiguous
-bucket (and Jev's share of the work) grows with session length, not with
-this 4-turn demo. See [`docs/architecture.md`](./docs/architecture.md).
+[`examples/codebase_triage_agent/`](./examples/codebase_triage_agent/): a
+bug-triage agent that investigates real bug reports against this actual
+repo's own source, tests, and git history — real `git grep`, real file
+reads, real `pytest` runs, no mocked data — through jev-gc end to end
+against the live Jev API. See that example's README for the real
+`tokens_saved_estimate` numbers from a full run.
 
 ## Design
 
