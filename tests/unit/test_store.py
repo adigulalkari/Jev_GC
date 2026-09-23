@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pytest
 
-from jevgc.archive import Archive
 from jevgc.backends.memory import InMemoryBackend
 from jevgc.exceptions import StoreError
 from jevgc.models import ContextItem, GCDecision, Tier, Treatment
@@ -113,19 +112,6 @@ def test_rehydrate_promotes_tier_only_when_nothing_was_archived():
     assert item is not None
     assert item.tier == Tier.HOT
     assert item.rendered_text == "hello"
-
-
-def test_rehydrate_degrades_to_a_promotion_when_content_was_released():
-    """Under memory pressure the archive keeps keywords and drops content, so
-    the span is still findable and still promotable -- just not verbatim."""
-    store = TieredContextStore(InMemoryBackend(), Archive(max_content_bytes=10))
-    pointer = _item("s1", Tier.COLD).model_copy(update={"rendered_text": "[tool] -> archived"})
-    store.put(pointer, full_text="warehouse manifest rotterdam " * 20)
-
-    item = store.rehydrate("s1")
-
-    assert item.tier == Tier.HOT
-    assert item.rendered_text == "[tool] -> archived"  # content is gone, item is not
 
 
 def test_rehydrate_is_idempotent_and_returns_none_for_unknown_span():

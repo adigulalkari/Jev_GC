@@ -109,16 +109,6 @@ gc.rehydrate(span_id)                # full content back in HOT
 a live re-read of the original source — what comes back is what was actually
 evicted, so an audit of that decision reads the same evidence the decision saw.
 
-Retaining that content costs memory, so the archive runs under a budget
-(`archive.max_content_bytes`, default 8 MiB). Past it, the least-recently-used
-snapshots release their *content* and keep their *keywords*: the span stays in
-the cold index, still answers a search, and still counts in a regret pass — it
-just can't be restored verbatim anymore, and `rehydrate` degrades to a tier
-promotion with a logged warning. Keywords cost ~100 bytes against content that
-runs to kilobytes, so discoverability outlives restorability by a wide margin.
-`gc.archive_stats()` reports `retained_bytes` and `released_count`; a
-`released_count` above zero means you've hit the ceiling.
-
 ## Measuring false eviction
 
 The failure mode that matters isn't a bad summary, it's a span that looked
