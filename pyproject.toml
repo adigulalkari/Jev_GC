@@ -50,9 +50,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/adigulalkari/jev-gc"
-Repository = "https://github.com/adigulalkari/jev-gc"
-Issues = "https://github.com/adigulalkari/jev-gc/issues"
+Homepage = "https://adigulalkari.github.io/Jev_GC/"
+Documentation = "https://adigulalkari.github.io/Jev_GC/"
+Repository = "https://github.com/adigulalkari/Jev_GC"
+Issues = "https://github.com/adigulalkari/Jev_GC/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/jevgc"]
@@ -82,9 +83,15 @@ source = ["src/jevgc"]
 branch = true
 
 [tool.coverage.report]
-# Relaxed from an initial 85% target: tests focus on the modules with real
-# decision logic (prefilter, policy, scorer, jev_client, store, config,
-# integration pipeline) rather than chasing coverage on thin wrappers
-# (telemetry, otel/translate, integrations/*).
-fail_under = 50
+# A ratchet, not the target. SPEC.md aims for 85%; actual coverage is ~76%,
+# because the tests chase the modules with real decision logic (prefilter,
+# policy, scorer, jev_client, store, config, the integration pipeline) rather
+# than thin wrappers (telemetry, otel/translate, integrations/*).
+#
+# Set just below the current figure, so a regression fails the build while an
+# unmet goal does not: a gate nobody can pass gets switched off, and a gate far
+# below reality never fires. Raise it as coverage rises. This line is the only
+# place the number lives -- SPEC.md and ci-local.sh defer to it rather than
+# restating it, which is how they came to disagree in the first place.
+fail_under = 75
 show_missing = true

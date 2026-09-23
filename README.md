@@ -3,6 +3,8 @@
 Real-time, OpenTelemetry-driven context garbage collection for LLM agents,
 powered by [Jev](https://typesafe.ai) (TypeSafe AI's "System One" model).
 
+**[Documentation and measured overhead →](https://adigulalkari.github.io/Jev_GC/)**
+
 ## The problem
 
 Long agent sessions accumulate tool results, retrieved chunks, and failed
@@ -140,6 +142,9 @@ causation — a ranked list of evictions worth inspecting and a dial for tuning
 
 ## Docs
 
+- **[adigulalkari.github.io/Jev_GC](https://adigulalkari.github.io/Jev_GC/)** —
+  install, configuration, API reference, the measured overhead, and an
+  explicit account of what those numbers do not prove
 - [`docs/quickstart.md`](./docs/quickstart.md)
 - [`docs/architecture.md`](./docs/architecture.md)
 - [`docs/jev_question_design.md`](./docs/jev_question_design.md)

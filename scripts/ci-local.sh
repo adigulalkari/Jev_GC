@@ -11,7 +11,9 @@ ruff check .
 echo "== mypy =="
 mypy src/jevgc
 
-echo "== pytest (coverage gate: 85%) =="
+# Don't restate the threshold here; pyproject.toml owns it, and a copy in
+# this script is a copy that drifts.
+echo "== pytest (coverage gate per pyproject.toml) =="
 pytest
 
 echo "All checks passed."
