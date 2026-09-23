@@ -92,6 +92,42 @@ prompt_context = gc.build_context(
 No OTel yet? Use the manual escape hatch: `await gc.observe(span_record)`.
 See [`docs/quickstart.md`](./docs/quickstart.md).
 
+## Getting evicted context back
+
+Eviction would be a one-way door if the only way to ask for a span were a
+`span_id` the agent can no longer see. So every span leaving HOT is archived
+as an immutable snapshot, and a keyword-only index of what's evicted stays
+cheap enough to show the agent every turn:
+
+```python
+gc.cold_index()                      # keywords only, never content
+gc.search_cold("rotterdam manifest") # -> [ColdIndexEntry(span_id=..., tier=COLD)]
+gc.rehydrate(span_id)                # full content back in HOT
+```
+
+`rehydrate` resolves to the snapshot taken when the span was observed, not to
+a live re-read of the original source — what comes back is what was actually
+evicted, so an audit of that decision reads the same evidence the decision saw.
+
+## Measuring false eviction
+
+The failure mode that matters isn't a bad summary, it's a span that looked
+irrelevant at turn 3 and mattered at turn 11 — silently, with no error. Every
+tier transition is logged, and a shadow replay diffs a no-eviction baseline run
+against the GC'd run:
+
+```python
+findings = gc.analyze_regret(
+    baseline_output=full_context_run_answer,
+    evicted_output=gc_run_answer,
+)
+```
+
+Each `RegretFinding` names an evicted span whose distinctive terms surfaced
+only in the baseline answer. It's keyword-overlap evidence, not proof of
+causation — a ranked list of evictions worth inspecting and a dial for tuning
+`relevance_keep_threshold`, not a regression gate.
+
 ## Docs
 
 - [`docs/quickstart.md`](./docs/quickstart.md)
