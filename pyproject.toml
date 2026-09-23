@@ -50,9 +50,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/adigulalkari/jev-gc"
-Repository = "https://github.com/adigulalkari/jev-gc"
-Issues = "https://github.com/adigulalkari/jev-gc/issues"
+Homepage = "https://adigulalkari.github.io/Jev_GC/"
+Documentation = "https://adigulalkari.github.io/Jev_GC/"
+Repository = "https://github.com/adigulalkari/Jev_GC"
+Issues = "https://github.com/adigulalkari/Jev_GC/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/jevgc"]
