@@ -33,6 +33,12 @@ class GCStats(BaseModel):
     tokens_full_content: int = 0
     #: tokens_full_content - tokens_rendered, running. The headline
     #: "tokens saved" stat.
+    #:
+    #: Deliberately the plain net, so it can go negative. A pointer or a
+    #: summary can cost more than the short content it replaces, and an
+    #: accounting that clamped those cases to zero would sum the wins while
+    #: dropping the losses -- overstating the headline number by exactly the
+    #: amount a skeptical reader would most want to know about.
     tokens_saved_estimate: int = 0
 
 
@@ -75,7 +81,7 @@ class JevGCTelemetry:
         self._stats.spans_processed += 1
         self._stats.tokens_rendered += token_count
         self._stats.tokens_full_content += full_token_count
-        self._stats.tokens_saved_estimate += max(0, full_token_count - token_count)
+        self._stats.tokens_saved_estimate += full_token_count - token_count
 
         if decision.tier == Tier.HOT:
             self._stats.spans_kept_hot += 1
