@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections import Counter
+from collections import Counter, OrderedDict
 from collections.abc import Callable
 
 from pydantic import BaseModel, ConfigDict
@@ -40,6 +40,12 @@ logger = logging.getLogger(__name__)
 _TOKEN_RE = re.compile(r"\w+")
 
 _MIN_TOKEN_LENGTH = 3
+
+#: Default archive content budget. 8 MiB is far more than a typical session
+#: produces (the codebase_triage_agent example archives well under 100 KB),
+#: so the common case never releases anything -- the budget exists to put a
+#: ceiling on the pathological case, not to shape normal behavior.
+DEFAULT_MAX_CONTENT_BYTES = 8 * 1024 * 1024
 
 # Deliberately tiny and hand-written: SPEC.md §2 principle 1 says code
 # calculates. A stopword list is a threshold-like judgment, so it stays in
@@ -88,16 +94,38 @@ class ArchiveEntry(BaseModel):
     kept in sync with the span's current tier -- it is part of the historical
     record. Anything that needs the live tier asks the store (see
     `Archive.cold_index`).
+
+    `full_text` is `None` for an entry whose content was released under the
+    archive's memory budget. The rest of the entry survives that release --
+    crucially the keywords -- so a released span stays discoverable in the
+    cold index and still counts in a regret pass; only the ability to restore
+    its content verbatim is lost. See `Archive` for why that tradeoff is the
+    one worth making.
     """
 
     model_config = ConfigDict(frozen=True)
 
     span_id: str
-    full_text: str
+    full_text: str | None
     keywords: tuple[str, ...]
     tier_at_archive: Tier
     turn_index: int
     timestamp_unix_ns: int
+
+    @property
+    def has_content(self) -> bool:
+        return self.full_text is not None
+
+
+class ArchiveStats(BaseModel):
+    """What the archive is currently costing, in the units a host tuning
+    `max_content_bytes` actually needs."""
+
+    model_config = ConfigDict(frozen=True)
+
+    entry_count: int  # archived spans; metadata + keywords, always retained
+    retained_bytes: int  # bytes of `full_text` currently held in memory
+    released_count: int  # entries whose content was dropped under pressure
 
 
 class ColdIndexEntry(BaseModel):
@@ -139,6 +167,12 @@ def extract_keywords(text: str, max_keywords: int = 12) -> tuple[str, ...]:
     return tuple(token for token, _ in ranked[:max_keywords])
 
 
+def _content_bytes(full_text: str) -> int:
+    """Budget in encoded bytes, not `len()`: a session of CJK or emoji-heavy
+    tool output costs several times its character count in memory."""
+    return len(full_text.encode("utf-8"))
+
+
 def _query_tokens(query: str) -> set[str]:
     """Tokenize a search query exactly as `extract_keywords` tokenizes content
     -- but without the `max_keywords` truncation, since a long query is the
@@ -151,7 +185,8 @@ def _query_tokens(query: str) -> set[str]:
 
 
 class Archive:
-    """Write-once store of the full text of spans jev-gc has observed.
+    """Write-once store of the full text of spans jev-gc has observed, held
+    under a fixed memory budget.
 
     `record` is write-once by design: once a `span_id` is archived, a later
     `record` for the same id is a no-op. An archived pointer must resolve to an
@@ -161,15 +196,50 @@ class Archive:
     eviction decision was made, and every audit of that decision would be
     reading different evidence than the decision saw.
 
+    WHY THERE IS A BUDGET AT ALL
+    ----------------------------
+    An unbounded archive quietly inverts the point of the library. jev-gc
+    exists to cut what a long session sends to the model, and retaining every
+    evicted span's full text forever would mean a process that trims its
+    prompts while its own memory grows without limit -- worst exactly in the
+    long-running sessions the library is for.
+
+    WHAT GIVES WAY UNDER PRESSURE
+    -----------------------------
+    Content, never discoverability. When `max_content_bytes` would be
+    exceeded, the least-recently-used entries' `full_text` is released while
+    their keywords, tier and turn are kept. A released span still appears in
+    `cold_index`, still answers `search`, and still participates in a regret
+    pass; what it can no longer do is hand back its exact bytes. Keywords cost
+    on the order of a hundred bytes against content that can run to kilobytes,
+    so this keeps the mechanism's *visible* half affordable almost indefinitely
+    and spends the budget only on the half that can be reconstructed by
+    re-running the tool.
+
+    This is the one place jev-gc knowingly bends SPEC.md §2 principle 3
+    ("never hard-delete"). It is bounded and explicit rather than silent: the
+    caller sets the budget, `stats()` reports what was given up, and
+    `TieredContextStore.rehydrate` degrades to a tier promotion with a logged
+    warning rather than failing. Set `max_content_bytes` high enough to cover
+    a session and nothing is released at all.
+
     Not thread-safe by intent: jev-gc's pipeline is single-writer per `JevGC`
     instance (SPEC.md §6 forbids global mutable state), so a lock here would
     buy nothing but contention.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, max_content_bytes: int = DEFAULT_MAX_CONTENT_BYTES) -> None:
+        if max_content_bytes < 0:
+            raise ValueError("max_content_bytes must be >= 0")
+        self._max_content_bytes = max_content_bytes
         # dict preserves insertion order, which is what makes `entries()`
         # deterministic without a separate sort key.
         self._entries: dict[str, ArchiveEntry] = {}
+        # Recency is tracked separately rather than by reordering `_entries`,
+        # so that use does not perturb the historical order `entries()` reports.
+        self._recency: OrderedDict[str, None] = OrderedDict()
+        self._retained_bytes = 0
+        self._released_count = 0
 
     def record(self, span_id: str, full_text: str, tier: Tier, turn_index: int) -> None:
         """Archive `full_text` for `span_id`, unless it is already archived.
@@ -190,9 +260,54 @@ class Archive:
             turn_index=turn_index,
             timestamp_unix_ns=now_unix_ns(),
         )
+        self._recency[span_id] = None
+        self._retained_bytes += _content_bytes(full_text)
+        self._enforce_budget()
 
     def get(self, span_id: str) -> ArchiveEntry | None:
-        return self._entries.get(span_id)
+        entry = self._entries.get(span_id)
+        if entry is not None and entry.has_content:
+            # Reading content is what makes an entry worth keeping: a span the
+            # agent keeps rehydrating should outlive one nothing has asked for.
+            self._recency.move_to_end(span_id)
+        return entry
+
+    def stats(self) -> ArchiveStats:
+        return ArchiveStats(
+            entry_count=len(self._entries),
+            retained_bytes=self._retained_bytes,
+            released_count=self._released_count,
+        )
+
+    def _enforce_budget(self) -> None:
+        """Release least-recently-used content until the budget is met.
+
+        Enforced strictly, including against the entry just recorded: a bound
+        that one oversized span can exceed is not a bound. That case is logged
+        at warning level because it means the archive is configured too small
+        to ever restore that span.
+        """
+        for span_id in list(self._recency):
+            if self._retained_bytes <= self._max_content_bytes:
+                return
+            self._release(span_id)
+
+    def _release(self, span_id: str) -> None:
+        entry = self._entries[span_id]
+        if entry.full_text is None:
+            self._recency.pop(span_id, None)
+            return
+        self._retained_bytes -= _content_bytes(entry.full_text)
+        self._entries[span_id] = entry.model_copy(update={"full_text": None})
+        self._recency.pop(span_id, None)
+        self._released_count += 1
+        logger.warning(
+            "archive: released content for span_id=%s to stay within "
+            "max_content_bytes=%d; it remains discoverable but can no longer "
+            "be rehydrated verbatim",
+            span_id,
+            self._max_content_bytes,
+        )
 
     def entries(self) -> list[ArchiveEntry]:
         """All entries in insertion order -- stable across runs so tests and

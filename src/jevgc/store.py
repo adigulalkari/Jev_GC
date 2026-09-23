@@ -125,12 +125,19 @@ class TieredContextStore:
             return item
 
         archived = self._archive.get(span_id)
-        if archived is None:
-            # Nothing to restore -- the span was stored without its full text
-            # (e.g. a backend rehydrated from disk with no matching archive).
-            # Promote anyway rather than refusing: a pointer in HOT is worse
-            # than content, but better than an item the agent can't reach.
-            logger.warning("rehydrate(%s): no archived snapshot, promoting tier only", span_id)
+        if archived is None or archived.full_text is None:
+            # Nothing to restore -- either the span was stored without its full
+            # text (e.g. a backend rehydrated from disk with no matching
+            # archive), or its content was released under the archive's memory
+            # budget. Promote anyway rather than refusing: a pointer in HOT is
+            # worse than content, but better than an item the agent can't reach.
+            logger.warning(
+                "rehydrate(%s): %s, promoting tier only",
+                span_id,
+                "content released under memory pressure"
+                if archived is not None
+                else "no archived snapshot",
+            )
             self._backend.move_tier(span_id, Tier.HOT)
             rehydrated = self._backend.get(span_id)
         else:

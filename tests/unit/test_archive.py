@@ -275,3 +275,94 @@ def test_eviction_event_is_frozen():
     except Exception:
         return
     raise AssertionError("EvictionEvent should be immutable")
+
+
+# --------------------------------------------------------------------------
+# memory budget
+# --------------------------------------------------------------------------
+
+
+def test_stats_account_for_retained_content_in_utf8_bytes():
+    archive = Archive()
+    archive.record("s1", "café", Tier.COLD, 0)  # 5 bytes in utf-8, 4 chars
+
+    stats = archive.stats()
+    assert (stats.entry_count, stats.retained_bytes, stats.released_count) == (1, 5, 0)
+
+
+def test_nothing_is_released_while_under_budget():
+    archive = Archive(max_content_bytes=1000)
+    archive.record("s1", "x" * 100, Tier.COLD, 0)
+    archive.record("s2", "y" * 100, Tier.WARM, 1)
+
+    assert archive.stats().released_count == 0
+    assert archive.get("s1").full_text == "x" * 100
+
+
+def test_over_budget_releases_least_recently_used_content_first():
+    archive = Archive(max_content_bytes=250)
+    archive.record("old", "o" * 100, Tier.COLD, 0)
+    archive.record("mid", "m" * 100, Tier.COLD, 1)
+    archive.record("new", "n" * 100, Tier.COLD, 2)  # 300 > 250 -> release oldest
+
+    assert archive.get("old").full_text is None
+    assert archive.get("mid").full_text == "m" * 100
+    assert archive.get("new").full_text == "n" * 100
+    stats = archive.stats()
+    assert (stats.retained_bytes, stats.released_count, stats.entry_count) == (200, 1, 3)
+
+
+def test_released_span_keeps_its_keywords_and_stays_discoverable():
+    """The point of releasing content rather than the whole entry: eviction
+    must not become undiscoverable just because memory got tight."""
+    archive = Archive(max_content_bytes=60)
+    archive.record("s1", "warehouse shipment manifest rotterdam depot", Tier.COLD, 0)
+    archive.record("s2", "invoice reconciliation erp totals ledger", Tier.COLD, 1)
+
+    released = archive.get("s1")
+    assert released.full_text is None
+    assert "rotterdam" in released.keywords
+
+    tier_of = _tier_map({"s1": Tier.COLD, "s2": Tier.COLD})
+    assert [e.span_id for e in archive.search("rotterdam depot", tier_of)] == ["s1"]
+    assert {e.span_id for e in archive.cold_index(tier_of)} == {"s1", "s2"}
+
+
+def test_reading_content_protects_an_entry_from_the_next_release():
+    archive = Archive(max_content_bytes=250)
+    archive.record("a", "a" * 100, Tier.COLD, 0)
+    archive.record("b", "b" * 100, Tier.COLD, 1)
+
+    archive.get("a")  # refreshes recency, so "b" is now the oldest
+    archive.record("c", "c" * 100, Tier.COLD, 2)
+
+    assert archive.get("a").full_text == "a" * 100
+    assert archive.get("b").full_text is None
+
+
+def test_entry_larger_than_the_whole_budget_is_released():
+    """A bound one oversized span can exceed is not a bound."""
+    archive = Archive(max_content_bytes=10)
+    archive.record("huge", "x" * 500, Tier.COLD, 0)
+
+    assert archive.get("huge").full_text is None
+    assert archive.stats().retained_bytes == 0
+    assert archive.stats().entry_count == 1  # discoverable, just not restorable
+
+
+def test_reading_does_not_reorder_the_historical_entry_list():
+    archive = Archive()
+    archive.record("s1", "first", Tier.COLD, 0)
+    archive.record("s2", "second", Tier.COLD, 1)
+
+    archive.get("s1")
+
+    assert [e.span_id for e in archive.entries()] == ["s1", "s2"]
+
+
+def test_negative_budget_is_rejected():
+    try:
+        Archive(max_content_bytes=-1)
+    except ValueError:
+        return
+    raise AssertionError("Archive should reject a negative budget")
