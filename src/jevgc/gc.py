@@ -9,12 +9,19 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from jevgc.archive import ColdIndexEntry
 from jevgc.config import JevGCConfig
-from jevgc.context_builder import assemble_context, build_context_item
+from jevgc.context_builder import (
+    assemble_context,
+    build_context_item,
+    estimate_tokens,
+    full_content_text,
+)
 from jevgc.jev_client.client import HTTPJevClient, JevClient
 from jevgc.models import GCDecision, SpanRecord, Tier, Treatment
 from jevgc.policy import BudgetAllocator, DecisionPolicy
 from jevgc.prefilter import PrefilterContext, PrefilterResult, apply_prefilter
+from jevgc.regret import RegretFinding, find_regret
 from jevgc.scorer import JevBatchScorer
 from jevgc.store import Backend, TieredContextStore
 from jevgc.telemetry import GCStats, JevGCTelemetry
@@ -133,8 +140,12 @@ class JevGC:
             decision = self._policy.decide(span, jev_result)
 
         item = build_context_item(span, decision)
-        self._store.put(item)
-        self._telemetry.record_decision(decision, item.token_count)
+        # The full text goes to the store alongside the (possibly already
+        # compressed) item so an eviction stays reversible -- see
+        # `TieredContextStore.rehydrate`.
+        full_text = full_content_text(span)
+        self._store.put(item, full_text=full_text, turn_index=self._turn_index)
+        self._telemetry.record_decision(decision, item.token_count, estimate_tokens(full_text))
         return decision
 
     def pin(self, span_id: str) -> None:
@@ -145,18 +156,77 @@ class JevGC:
     def mark_referenced(self, span_id: str) -> None:
         """Marks a span as referenced by a later turn -- the prefilter keeps
         referenced spans, and any WARM/COLD item already stored for it is
-        promoted back to HOT."""
+        rehydrated back to HOT with its full content restored (not merely
+        re-tiered: a compressed item's stored text is already a pointer)."""
         self._referenced_span_ids.add(span_id)
-        self._store.promote_if_referenced(span_id)
+        self._store.rehydrate(
+            span_id, turn_index=self._turn_index, reason="rehydrated_by_reference"
+        )
+
+    def cold_index(self) -> list[ColdIndexEntry]:
+        """Keyword-only index of every currently evicted (WARM/COLD) span.
+
+        Eviction is otherwise a one-way door: `build_context` shows HOT/WARM
+        content and COLD is never auto-reinstated, so an agent has no way to
+        name a span it can no longer see. Surface this index to the agent --
+        it's keywords only, so it stays affordable to include every turn --
+        and a later task can discover what it needs and ask for it back via
+        `rehydrate`.
+        """
+        return self._store.cold_index()
+
+    def search_cold(self, query: str, limit: int = 5) -> list[ColdIndexEntry]:
+        """Ranks the cold index by keyword overlap with `query`."""
+        return self._store.search_cold(query, limit=limit)
+
+    def rehydrate(self, span_id: str) -> str | None:
+        """Restores an evicted span's full archived content to HOT and returns
+        it, or None if the span isn't tracked.
+
+        The content comes from an immutable snapshot taken when the span was
+        first observed, never from a live re-read of the original source -- so
+        what comes back is what jev-gc actually evicted, not whatever that tool
+        would return if you called it again now.
+        """
+        self._referenced_span_ids.add(span_id)
+        item = self._store.rehydrate(
+            span_id, turn_index=self._turn_index, reason="rehydrated_by_retrieval"
+        )
+        return item.rendered_text if item is not None else None
+
+    def analyze_regret(
+        self, *, baseline_output: str, evicted_output: str, min_keyword_hits: int = 2
+    ) -> list[RegretFinding]:
+        """Replays this session's eviction log against a no-eviction baseline
+        run to surface likely **false evictions**.
+
+        The host runs the same task twice -- once with jev-gc evicting, once
+        with full context -- and passes both final outputs here. Content that
+        shows up in the baseline output but not the evicted one is evidence
+        that an eviction cost the agent something. Keyword-overlap evidence,
+        not proof: use it to tune `relevance_keep_threshold`, not to certify
+        that a given eviction was safe.
+        """
+        return find_regret(
+            self._store.eviction_log(),
+            self._store.archive,
+            baseline_output=baseline_output,
+            evicted_output=evicted_output,
+            min_keyword_hits=min_keyword_hits,
+        )
 
     def advance_turn(self, turn_index: int | None = None) -> None:
         self._turn_index = turn_index if turn_index is not None else self._turn_index + 1
 
     def build_context(self, *, task: str, budget_tokens: int) -> str:
         """Assembles the next prompt's context string from everything
-        currently HOT or WARM in the store (COLD items are archived and
-        never auto-reinstated), greedily filling `budget_tokens` by
-        relevance with errored spans always winning a slot first."""
+        currently HOT or WARM in the store, greedily filling `budget_tokens`
+        by relevance with errored spans always winning a slot first.
+
+        COLD items are never auto-reinstated here -- reach them deliberately
+        via `search_cold` / `rehydrate`, or surface `cold_index()` to the
+        agent so it knows they exist.
+        """
         self._current_task = task
         candidates = self._store.list_by_tier(Tier.HOT) + self._store.list_by_tier(Tier.WARM)
         selected = BudgetAllocator.allocate(candidates, budget_tokens)

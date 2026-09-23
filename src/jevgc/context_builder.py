@@ -20,6 +20,26 @@ def estimate_tokens(text: str) -> int:
     return max(1, len(text) // _CHARS_PER_TOKEN)
 
 
+def full_content_text(span: SpanRecord) -> str:
+    """What this span would render as if jev-gc never compressed or evicted
+    anything -- i.e. `Treatment.INCLUDE_FULL` / `ErrorTreatment.KEEP_FULL_TRACE`
+    rendering, used both by those branches below and as the "no GC at all"
+    baseline for the token-savings stat in telemetry.py. Must match the
+    *shape* (header + full body) of whatever treatment actually renders, or
+    the savings comparison isn't apples to apples -- a short pointer string
+    can otherwise look like it costs *more* than a body-less baseline.
+    """
+    header = f"[{span.name}]"
+    if span.is_error:
+        return _render_error(span, header, ErrorTreatment.KEEP_FULL_TRACE)
+    body = span.output_preview or span.input_preview or "(no content)"
+    return f"{header}\n{body}"
+
+
+def full_content_tokens(span: SpanRecord) -> int:
+    return estimate_tokens(full_content_text(span))
+
+
 def render_span_content(span: SpanRecord, decision: GCDecision) -> str:
     """Renders a span's content according to its decided treatment."""
     header = f"[{span.name}]"
@@ -28,8 +48,7 @@ def render_span_content(span: SpanRecord, decision: GCDecision) -> str:
         return _render_error(span, header, decision.treatment)
 
     if decision.treatment == Treatment.INCLUDE_FULL:
-        body = span.output_preview or span.input_preview or "(no content)"
-        return f"{header}\n{body}"
+        return full_content_text(span)
 
     if decision.treatment == Treatment.INCLUDE_SUMMARY_ONLY:
         body = _summarize(span.output_preview or span.input_preview or "")

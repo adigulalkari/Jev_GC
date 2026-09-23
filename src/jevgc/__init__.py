@@ -18,6 +18,7 @@ Typical usage:
     context = gc.build_context(task="...", budget_tokens=8000)
 """
 
+from jevgc.archive import ArchiveEntry, ColdIndexEntry, EvictionEvent
 from jevgc.config import JevGCConfig
 from jevgc.exceptions import (
     ConfigurationError,
@@ -35,6 +36,7 @@ from jevgc.models import (
     Tier,
     Treatment,
 )
+from jevgc.regret import RegretFinding, find_regret
 
 __version__ = "0.1.0"
 
@@ -47,6 +49,11 @@ __all__ = [
     "Tier",
     "Treatment",
     "ErrorTreatment",
+    "ArchiveEntry",
+    "ColdIndexEntry",
+    "EvictionEvent",
+    "RegretFinding",
+    "find_regret",
     "JevGCError",
     "JevAPIError",
     "JevRateLimitError",

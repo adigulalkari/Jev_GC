@@ -74,7 +74,15 @@ async def test_investigation_scenario_dead_end_error_and_duplicate(make_span):
         span_id="relevant", turn_index=0, output_preview="ERP total: $4521.00", output_token_count=200
     )
     dead_end_span = make_span(
-        span_id="deadend", turn_index=0, output_preview="unrelated warehouse SKU listing", output_token_count=200
+        span_id="deadend",
+        turn_index=0,
+        # Realistically-sized (not a one-liner) so a DROP's pointer text is
+        # actually smaller than the source, exercising tokens_saved_estimate
+        # meaningfully -- a tiny fixture can make a pointer/label cost as
+        # much as the content it replaces, which is a real but different
+        # thing to test (see test_telemetry.py's short-content cases).
+        output_preview="unrelated warehouse SKU listing: " + ", ".join(f"SKU-{i}" for i in range(40)),
+        output_token_count=200,
     )
     error_span = make_span(
         span_id="erroring",
@@ -99,6 +107,10 @@ async def test_investigation_scenario_dead_end_error_and_duplicate(make_span):
     stats = gc.stats()
     assert stats.spans_processed == 3
     assert stats.jev_calls == 3
+    # dead_end_span was dropped from the prompt entirely -- its full content
+    # (a ~50-token line) should show up as savings, not as rendered tokens.
+    assert stats.tokens_saved_estimate > 0
+    assert stats.tokens_full_content > stats.tokens_rendered
 
 
 @pytest.mark.asyncio
@@ -112,6 +124,71 @@ async def test_manual_observe_returns_decision_per_span(make_span):
 
     assert decision.span_id == span.span_id
     assert decision.used_jev is True
+
+
+@pytest.mark.asyncio
+async def test_evicted_span_is_discoverable_by_keyword_and_rehydrates_in_full(make_span):
+    """The rehydration loop end to end: a span evicted for irrelevance is
+    invisible to `build_context`, but still discoverable by keyword -- which
+    is what makes eviction recoverable when a later task shifts."""
+    client = FakeJevClient(responder=_scored_responder)
+    gc = JevGC(_config(), jev_client=client)
+
+    gc.advance_turn(50)
+    await gc.observe(
+        make_span(
+            span_id="deadend",
+            turn_index=0,
+            output_preview="warehouse shipment manifest for rotterdam depot",
+            output_token_count=200,
+        )
+    )
+
+    assert "rotterdam" not in gc.build_context(task="Reconcile invoice", budget_tokens=1000)
+
+    # The agent never saw the span_id -- it finds it by what it remembers.
+    hits = gc.search_cold("rotterdam depot")
+    assert [hit.span_id for hit in hits] == ["deadend"]
+    assert hits[0].tier == Tier.COLD
+
+    restored = gc.rehydrate("deadend")
+    assert "rotterdam depot" in restored
+    assert "rotterdam depot" in gc.build_context(task="Trace the depot handoff", budget_tokens=1000)
+    assert gc.cold_index() == []
+
+
+@pytest.mark.asyncio
+async def test_regret_analysis_flags_an_eviction_the_baseline_run_used(make_span):
+    client = FakeJevClient(responder=_scored_responder)
+    gc = JevGC(_config(), jev_client=client)
+
+    gc.advance_turn(50)
+    await gc.observe(
+        make_span(
+            span_id="deadend",
+            turn_index=0,
+            output_preview="warehouse shipment manifest for rotterdam depot, pallet 8831",
+            output_token_count=200,
+        )
+    )
+
+    findings = gc.analyze_regret(
+        baseline_output="Invoice reconciles once you account for the rotterdam depot pallet 8831 manifest.",
+        evicted_output="Invoice does not reconcile; unable to explain the shortfall.",
+    )
+
+    assert [f.span_id for f in findings] == ["deadend"]
+    assert findings[0].evicted_to == Tier.COLD
+    assert findings[0].regret_score > 0
+
+    # Same session, but the evicted run reached the same conclusion -- no regret.
+    assert (
+        gc.analyze_regret(
+            baseline_output="rotterdam depot pallet 8831 manifest",
+            evicted_output="rotterdam depot pallet 8831 manifest",
+        )
+        == []
+    )
 
 
 @pytest.mark.asyncio

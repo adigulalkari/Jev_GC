@@ -67,9 +67,9 @@ gc = JevGC(config, jev_client=FakeJevClient())
 
 ```bash
 export JEV_API_KEY=...
-export GEMINI_API_KEY=...
+export MISTRAL_API_KEY=...
 pip install -e ".[examples]"
-python examples/strands_dummy_agent/dummy_agent.py
+python examples/codebase_triage_agent/agent.py
 ```
 
-See [`examples/strands_dummy_agent/README.md`](../examples/strands_dummy_agent/README.md).
+See [`examples/codebase_triage_agent/README.md`](../examples/codebase_triage_agent/README.md).

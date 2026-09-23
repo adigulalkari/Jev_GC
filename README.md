@@ -45,18 +45,12 @@ them by 0.30. Reproduce it: `export JEV_API_KEY=... && python scripts/relevance_
 
 ## Real run
 
-[`examples/strands_dummy_agent/`](./examples/strands_dummy_agent/): a
-Gemini-backed Strands agent with real tools (live weather, calculator,
-docs search), 4 turns, through jev-gc end to end against the live Jev API:
-
-```
-spans_processed: 27   spans_kept_hot: 26   spans_kept_warm: 1
-jev_calls: 1           jev_call_errors: 0
-```
-
-Most spans resolved free via the pre-filter, as designed — the ambiguous
-bucket (and Jev's share of the work) grows with session length, not with
-this 4-turn demo. See [`docs/architecture.md`](./docs/architecture.md).
+[`examples/codebase_triage_agent/`](./examples/codebase_triage_agent/): a
+bug-triage agent that investigates real bug reports against this actual
+repo's own source, tests, and git history — real `git grep`, real file
+reads, real `pytest` runs, no mocked data — through jev-gc end to end
+against the live Jev API. See that example's README for the real
+`tokens_saved_estimate` numbers from a full run.
 
 ## Design
 
@@ -97,6 +91,42 @@ prompt_context = gc.build_context(
 
 No OTel yet? Use the manual escape hatch: `await gc.observe(span_record)`.
 See [`docs/quickstart.md`](./docs/quickstart.md).
+
+## Getting evicted context back
+
+Eviction would be a one-way door if the only way to ask for a span were a
+`span_id` the agent can no longer see. So every span leaving HOT is archived
+as an immutable snapshot, and a keyword-only index of what's evicted stays
+cheap enough to show the agent every turn:
+
+```python
+gc.cold_index()                      # keywords only, never content
+gc.search_cold("rotterdam manifest") # -> [ColdIndexEntry(span_id=..., tier=COLD)]
+gc.rehydrate(span_id)                # full content back in HOT
+```
+
+`rehydrate` resolves to the snapshot taken when the span was observed, not to
+a live re-read of the original source — what comes back is what was actually
+evicted, so an audit of that decision reads the same evidence the decision saw.
+
+## Measuring false eviction
+
+The failure mode that matters isn't a bad summary, it's a span that looked
+irrelevant at turn 3 and mattered at turn 11 — silently, with no error. Every
+tier transition is logged, and a shadow replay diffs a no-eviction baseline run
+against the GC'd run:
+
+```python
+findings = gc.analyze_regret(
+    baseline_output=full_context_run_answer,
+    evicted_output=gc_run_answer,
+)
+```
+
+Each `RegretFinding` names an evicted span whose distinctive terms surfaced
+only in the baseline answer. It's keyword-overlap evidence, not proof of
+causation — a ranked list of evictions worth inspecting and a dial for tuning
+`relevance_keep_threshold`, not a regression gate.
 
 ## Docs
 
