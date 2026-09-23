@@ -1,0 +1,76 @@
+name: Pages
+
+# Publishes docs/ to GitHub Pages, but only after checking that the page still
+# agrees with the measurements committed alongside it. The page's argument is
+# that its numbers are reproducible, so shipping a version whose tables have
+# drifted from results/benchmark.json would be worse than shipping nothing.
+#
+# Pages source must be set to "GitHub Actions" in Settings -> Pages for the
+# deploy job to have anywhere to publish to.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never let two deploys race; queue instead of cancelling, so an in-flight
+# publish is not left half-applied.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Docs match the committed measurements
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      # Deliberately does NOT regenerate the benchmark. A shared CI runner is
+      # noisy and contended, so timings measured here would be meaningless and
+      # would change on every push -- the committed JSON is worth something
+      # precisely because it came from one identifiable machine. CI's job is to
+      # check consistency, not to produce the numbers.
+      - name: Check docs against results/benchmark.json
+        run: python scripts/check_docs_consistency.py
+
+  deploy:
+    name: Deploy to Pages
+    needs: verify
+    # Deploys from main, or from any branch on a manual run -- which is how you
+    # preview the site before the branch has landed.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/configure-pages@v5
+
+      - name: Upload docs/
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
