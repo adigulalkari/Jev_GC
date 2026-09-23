@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/adigulalkari/Jev_GC/security/advisories/new
+    about: Please report security issues privately, not as a public issue.
+  - name: Documentation
+    url: https://adigulalkari.github.io/Jev_GC/
+    about: Install, configuration, API reference and the measured overhead numbers.
+  - name: Design rationale
+    url: https://github.com/adigulalkari/Jev_GC/blob/main/SPEC.md
+    about: Why each judgment is delegated to Jev or kept in deterministic code.
