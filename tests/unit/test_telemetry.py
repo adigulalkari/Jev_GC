@@ -54,15 +54,37 @@ def test_savings_accumulate_across_multiple_decisions():
     assert stats.tokens_saved_estimate == 140  # only s2 contributed savings
 
 
-def test_summary_longer_than_source_never_reports_negative_savings():
-    # Pathological but guarded against (per the plan's max(0, ...) note).
+def test_rendering_larger_than_source_counts_against_savings():
+    """A pointer can cost more than the short content it replaces. That is a
+    real loss, and clamping it to zero would let the headline stat sum its
+    wins while dropping its losses."""
     telemetry = JevGCTelemetry(emit_self_metrics=False)
     decision = _decision("s1", Tier.HOT, Treatment.INCLUDE_SUMMARY_ONLY)
 
     telemetry.record_decision(decision, token_count=20, full_token_count=10)
 
     stats = telemetry.snapshot()
-    assert stats.tokens_saved_estimate == 0
+    assert stats.tokens_saved_estimate == -10
+
+
+def test_saved_estimate_always_equals_full_content_minus_rendered():
+    """The invariant the field's docstring promises, checked against a mix
+    where one span wins and another loses."""
+    telemetry = JevGCTelemetry(emit_self_metrics=False)
+    telemetry.record_decision(
+        _decision("win", Tier.WARM, Treatment.KEEP_POINTER_ONLY),
+        token_count=10,
+        full_token_count=150,
+    )
+    telemetry.record_decision(
+        _decision("loss", Tier.HOT, Treatment.INCLUDE_SUMMARY_ONLY),
+        token_count=25,
+        full_token_count=5,
+    )
+
+    stats = telemetry.snapshot()
+    assert stats.tokens_saved_estimate == stats.tokens_full_content - stats.tokens_rendered
+    assert stats.tokens_saved_estimate == 120
 
 
 def test_snapshot_returns_independent_copy():
