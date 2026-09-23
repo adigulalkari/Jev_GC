@@ -16,7 +16,6 @@ import yaml
 from pydantic import BaseModel, Field, SecretStr, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from jevgc.archive import DEFAULT_MAX_CONTENT_BYTES
 from jevgc.exceptions import ConfigurationError
 from jevgc.models import ErrorTreatment
 
@@ -49,15 +48,6 @@ class StoreSettings(BaseModel):
     sqlite_path: str | None = None
 
 
-class ArchiveSettings(BaseModel):
-    """Ceiling on the memory the content archive may hold. Past it, the
-    least-recently-used snapshots release their content and keep their
-    keywords -- evicted spans stay discoverable, but can no longer be
-    rehydrated verbatim. See `jevgc.archive.Archive`."""
-
-    max_content_bytes: int = DEFAULT_MAX_CONTENT_BYTES
-
-
 class TelemetrySettings(BaseModel):
     emit_self_metrics: bool = True
 
@@ -82,7 +72,6 @@ class JevGCConfig(BaseSettings):
     scorer: ScorerSettings = Field(default_factory=ScorerSettings)
     policy: PolicySettings = Field(default_factory=PolicySettings)
     store: StoreSettings = Field(default_factory=StoreSettings)
-    archive: ArchiveSettings = Field(default_factory=ArchiveSettings)
     telemetry: TelemetrySettings = Field(default_factory=TelemetrySettings)
 
     @classmethod

@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from jevgc.archive import Archive, ArchiveStats, ColdIndexEntry
+from jevgc.archive import ColdIndexEntry
 from jevgc.config import JevGCConfig
 from jevgc.context_builder import (
     assemble_context,
@@ -69,9 +69,7 @@ class JevGC:
             from jevgc.backends.memory import InMemoryBackend
 
             backend = InMemoryBackend()
-        self._store = TieredContextStore(
-            backend, Archive(max_content_bytes=config.archive.max_content_bytes)
-        )
+        self._store = TieredContextStore(backend)
         self._telemetry = JevGCTelemetry(emit_self_metrics=config.telemetry.emit_self_metrics)
 
         self._processor: JevGCSpanProcessor | None = None
@@ -236,15 +234,6 @@ class JevGC:
 
     def stats(self) -> GCStats:
         return self._telemetry.snapshot()
-
-    def archive_stats(self) -> ArchiveStats:
-        """What retaining evicted content currently costs in memory.
-
-        Worth watching in a long session: `released_count` climbing above zero
-        means the archive hit `archive.max_content_bytes` and those spans can
-        no longer be rehydrated verbatim, only discovered.
-        """
-        return self._store.archive.stats()
 
     async def wait_all(self) -> None:
         """Awaits every span dispatched via `attach_to_tracer_provider` that

@@ -18,7 +18,7 @@ Typical usage:
     context = gc.build_context(task="...", budget_tokens=8000)
 """
 
-from jevgc.archive import ArchiveEntry, ArchiveStats, ColdIndexEntry, EvictionEvent
+from jevgc.archive import ArchiveEntry, ColdIndexEntry, EvictionEvent
 from jevgc.config import JevGCConfig
 from jevgc.exceptions import (
     ConfigurationError,
@@ -50,7 +50,6 @@ __all__ = [
     "Treatment",
     "ErrorTreatment",
     "ArchiveEntry",
-    "ArchiveStats",
     "ColdIndexEntry",
     "EvictionEvent",
     "RegretFinding",
