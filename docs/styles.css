@@ -1,0 +1,688 @@
+/* jev-gc report page.
+   Hand-written, no framework, no JavaScript. Served by GitHub Pages from
+   /docs. The page is dense with tables and verbatim program output, so the
+   type system is built around three jobs: prose you can read at length,
+   numbers you can compare down a column, and output you can trust is
+   verbatim. */
+
+:root {
+  --bg: #fbfaf8;
+  --surface: #ffffff;
+  --surface-alt: #f4f2ee;
+  --text: #1c1b19;
+  --text-muted: #5f5b54;
+  --text-faint: #8a857c;
+  --rule: #e2ded6;
+  --rule-strong: #c9c3b8;
+  --accent: #8a3324;
+  --accent-soft: #f5e9e5;
+  --hot: #a33a22;
+  --warm: #9a6b1f;
+  --cold: #3f6b8a;
+  --ok: #3d6b47;
+  --mono-bg: #f4f2ee;
+  --shadow: rgba(28, 27, 25, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14130f;
+    --surface: #1b1a16;
+    --surface-alt: #211f1a;
+    --text: #eae6dd;
+    --text-muted: #a9a398;
+    --text-faint: #7d776c;
+    --rule: #2f2c26;
+    --rule-strong: #453f36;
+    --accent: #e08a70;
+    --accent-soft: #2a201c;
+    --hot: #e08a70;
+    --warm: #d6a850;
+    --cold: #7fb0d0;
+    --ok: #7fb98a;
+    --mono-bg: #211f1a;
+    --shadow: rgba(0, 0, 0, 0.4);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #14130f;
+  --surface: #1b1a16;
+  --surface-alt: #211f1a;
+  --text: #eae6dd;
+  --text-muted: #a9a398;
+  --text-faint: #7d776c;
+  --rule: #2f2c26;
+  --rule-strong: #453f36;
+  --accent: #e08a70;
+  --accent-soft: #2a201c;
+  --hot: #e08a70;
+  --warm: #d6a850;
+  --cold: #7fb0d0;
+  --ok: #7fb98a;
+  --mono-bg: #211f1a;
+  --shadow: rgba(0, 0, 0, 0.4);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  line-height: 1.62;
+  font-feature-settings: "kern" 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 47rem;
+  margin: 0 auto;
+  padding: 0 16px 6rem;
+}
+
+/* ---- masthead ---------------------------------------------------------- */
+
+header.masthead {
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 3rem;
+  padding: 3.5rem 0 2.25rem;
+}
+
+.eyebrow {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin: 0 0 1rem;
+}
+
+h1 {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: clamp(1.9rem, 5.2vw, 2.7rem);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin: 0 0 1.1rem;
+  text-wrap: balance;
+}
+
+.standfirst {
+  font-size: 1.16rem;
+  color: var(--text-muted);
+  margin: 0 0 1.75rem;
+  max-width: 38rem;
+}
+
+.meta {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 0.83rem;
+  color: var(--text-faint);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.meta a {
+  color: var(--accent);
+}
+
+/* ---- side navigation ---------------------------------------------------
+   Collapsible with no JavaScript: a visually hidden checkbox holds the open
+   state and sibling selectors do the rest. The checkbox means "toggled away
+   from this breakpoint's default" rather than a fixed open/closed, because
+   the sensible default differs -- open beside the text on a wide screen,
+   closed behind a button on a phone. */
+
+.nav-state {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.nav-button {
+  position: fixed;
+  top: 0.9rem;
+  left: 0.9rem;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--rule-strong);
+  border-radius: 6px;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+  box-shadow: 0 1px 3px var(--shadow);
+  user-select: none;
+}
+
+.nav-button:hover {
+  color: var(--text);
+  border-color: var(--text-faint);
+}
+
+.nav-state:focus-visible + .nav-button {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.nav-button .bars {
+  display: block;
+  width: 13px;
+  height: 9px;
+  border-top: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  position: relative;
+}
+
+.nav-button .bars::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 0;
+  width: 100%;
+  border-top: 1.5px solid currentColor;
+}
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 35;
+  width: 15.5rem;
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--surface);
+  border-right: 1px solid var(--rule);
+  padding: 4.2rem 1.25rem 2rem;
+  transition: transform 0.18s ease;
+}
+
+.sidebar .toc-title {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin: 0 0 0.8rem;
+}
+
+.sidebar ol {
+  list-style: none;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  margin: 0;
+  padding: 0;
+  counter-reset: toc;
+}
+
+.sidebar li {
+  margin: 0;
+  counter-increment: toc;
+}
+
+.sidebar a {
+  display: flex;
+  gap: 0.55rem;
+  text-decoration: none;
+  color: var(--text-muted);
+  padding: 0.42rem 0.5rem;
+  border-radius: 4px;
+}
+
+.sidebar a::before {
+  content: counter(toc);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.75rem;
+  padding-top: 0.08rem;
+  min-width: 1ch;
+}
+
+.sidebar a:hover {
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+.sidebar a:target,
+.sidebar a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.sidebar-foot {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+}
+
+.sidebar-foot a {
+  display: inline;
+  padding: 0;
+  color: var(--accent);
+}
+
+.sidebar-foot a::before {
+  content: none;
+}
+
+/* Wide: the panel sits in the left gutter, open by default. Checking the box
+   collapses it. The text column never moves, so collapsing is a preference
+   rather than a layout change. */
+@media (min-width: 1180px) {
+  .nav-state:checked ~ .sidebar {
+    transform: translateX(-100%);
+  }
+
+  /* Reserve the panel's width so the text column centres in what's left of
+     the viewport instead of sliding underneath it. */
+  .nav-state:not(:checked) ~ .wrap {
+    max-width: calc(47rem + 15.5rem + 32px);
+    padding-left: calc(15.5rem + 16px);
+  }
+
+  .nav-button {
+    left: 1.1rem;
+  }
+
+  .nav-state:not(:checked) ~ .nav-button {
+    left: 16.75rem;
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+  }
+
+  .nav-state:not(:checked) ~ .nav-button .label {
+    display: none;
+  }
+}
+
+/* Narrow: closed by default, opens as an overlay with a scrim. */
+@media (max-width: 1179px) {
+  .sidebar {
+    transform: translateX(-100%);
+    box-shadow: 0 0 40px var(--shadow);
+  }
+
+  /* Clear the fixed toggle, which sits over the masthead at these widths. */
+  header.masthead {
+    padding-top: 4.75rem;
+  }
+
+  .nav-state:checked ~ .sidebar {
+    transform: translateX(0);
+  }
+
+  .nav-state:checked ~ .scrim {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .scrim {
+    transition: none;
+  }
+}
+
+/* Anchored headings shouldn't sit flush against the viewport top. */
+h2[id] {
+  scroll-margin-top: 1.5rem;
+}
+
+/* ---- typography -------------------------------------------------------- */
+
+h2 {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  margin: 3.75rem 0 0.35rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--rule);
+  text-wrap: balance;
+}
+
+h2:first-of-type {
+  margin-top: 0;
+}
+
+h3 {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 1.02rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  margin: 2.25rem 0 0.4rem;
+}
+
+.kicker {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 0.82rem;
+  color: var(--text-faint);
+  margin: 0 0 1.75rem;
+}
+
+p {
+  margin: 0 0 1.15rem;
+}
+
+a {
+  color: var(--accent);
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+
+strong {
+  font-weight: 600;
+}
+
+ul,
+ol {
+  margin: 0 0 1.15rem;
+  padding-left: 1.3rem;
+}
+
+li {
+  margin-bottom: 0.45rem;
+}
+
+code {
+  font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.855em;
+  background: var(--mono-bg);
+  border-radius: 3px;
+  padding: 0.1em 0.35em;
+}
+
+/* ---- verbatim output --------------------------------------------------- */
+
+pre {
+  font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.76rem;
+  line-height: 1.55;
+  background: var(--surface-alt);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 1.1rem 1.2rem;
+  overflow-x: auto;
+  margin: 0 0 1.15rem;
+  tab-size: 2;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+figure {
+  margin: 0 0 1.6rem;
+}
+
+figcaption {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 0.8rem;
+  color: var(--text-faint);
+  margin-top: 0.6rem;
+  line-height: 1.5;
+}
+
+/* ---- tables ------------------------------------------------------------ */
+
+.table-scroll {
+  overflow-x: auto;
+  margin: 0 0 0.75rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 0.83rem;
+  font-variant-numeric: tabular-nums;
+}
+
+caption {
+  caption-side: top;
+  text-align: left;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 0.8rem;
+  color: var(--text-faint);
+  padding-bottom: 0.6rem;
+}
+
+th,
+td {
+  padding: 0.5rem 0.7rem;
+  text-align: left;
+  border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+
+thead th {
+  font-weight: 600;
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--rule-strong);
+  vertical-align: bottom;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+td.num,
+th.num {
+  text-align: right;
+}
+
+td.wrap-cell {
+  white-space: normal;
+  min-width: 13rem;
+}
+
+tbody tr.highlight td {
+  background: var(--accent-soft);
+}
+
+/* ---- tier badges ------------------------------------------------------- */
+
+.tier {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.12em 0.45em;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+}
+
+.tier-hot {
+  color: var(--hot);
+}
+
+.tier-warm {
+  color: var(--warm);
+}
+
+.tier-cold {
+  color: var(--cold);
+}
+
+/* ---- callouts ---------------------------------------------------------- */
+
+.note {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--rule-strong);
+  border-radius: 0 6px 6px 0;
+  padding: 1rem 1.2rem;
+  margin: 0 0 1.4rem;
+  font-size: 0.94rem;
+}
+
+.note p:last-child {
+  margin-bottom: 0;
+}
+
+.note .label {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  display: block;
+  margin-bottom: 0.4rem;
+}
+
+.note-caution {
+  border-left-color: var(--accent);
+}
+
+/* ---- headline figures -------------------------------------------------- */
+
+.figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 0 0 1.5rem;
+}
+
+.figures div {
+  background: var(--surface);
+  padding: 1rem 1.1rem;
+}
+
+.figures .value {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  display: block;
+  line-height: 1.1;
+}
+
+.figures .label {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  display: block;
+  margin-top: 0.35rem;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+/* ---- diagram ----------------------------------------------------------- */
+
+.diagram {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto 0.5rem;
+}
+
+.diagram text {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+}
+
+/* ---- footer ------------------------------------------------------------ */
+
+footer {
+  border-top: 1px solid var(--rule);
+  margin-top: 4rem;
+  padding-top: 1.5rem;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 0.82rem;
+  color: var(--text-faint);
+}
+
+footer a {
+  color: var(--accent);
+}
+
+/* ---- small screens ----------------------------------------------------- */
+
+@media (max-width: 640px) {
+  body {
+    font-size: 17px;
+  }
+
+  /* Still has to clear the fixed toggle -- tighter than the tablet value,
+     but not back down to the no-sidebar 2.25rem. */
+  header.masthead {
+    padding-top: 4.25rem;
+  }
+
+  pre {
+    font-size: 0.68rem;
+  }
+
+  h2 {
+    margin-top: 2.75rem;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+    color: #000;
+  }
+
+  pre,
+  .note,
+  .figures div {
+    border-color: #bbb;
+  }
+}

@@ -1,0 +1,57 @@
+name: Feature request
+description: Propose a capability or a change to how a decision is made
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Worth skimming [`SPEC.md`](../../SPEC.md) §2 first — several obvious
+        designs are ruled out there on purpose (jev-gc never calls an LLM to
+        summarize, never hard-deletes, and keeps rule-decidable judgments out
+        of Jev). Proposals that cut against one of those are still welcome, but
+        they need an argument rather than just a use case.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >
+        What are you trying to do that jev-gc makes hard or impossible today?
+        Describe the situation rather than the solution you have in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you'd like instead
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part does this touch?
+      options:
+        - Pre-filter rules
+        - Jev questions or scoring
+        - Policy / tier assignment
+        - Budget allocation and context assembly
+        - Archive, cold index or rehydration
+        - Regret analysis
+        - Store backends or persistence
+        - Framework integrations (LangGraph, Strands, OTel)
+        - Something else / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: >
+        Including whether this can already be done from outside the library —
+        `pin`, `mark_referenced`, the config thresholds and the manual
+        `observe` path cover more than they look like they do.
+    validations:
+      required: false
