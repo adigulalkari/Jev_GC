@@ -1,0 +1,90 @@
+name: Publish to PyPI
+
+# Builds and publishes the package whenever a GitHub Release is published
+# against main, or on demand via workflow_dispatch. Uses PyPI's Trusted
+# Publisher flow (OIDC) rather than a long-lived API token: no secret is
+# stored in this repo. Before the first run, add this repo as a trusted
+# publisher for the `jev-gc` project at
+# https://pypi.org/manage/project/jev-gc/settings/publishing/
+# (workflow name: publish.yml, environment: pypi).
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test before publishing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,langgraph,strands]"
+
+      - name: ruff check
+        run: ruff check .
+
+      - name: mypy --strict
+        run: mypy src/jevgc
+
+      - name: pytest (coverage gate)
+        run: pytest
+
+  build:
+    name: Build sdist and wheel
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install build backend
+        run: python -m pip install --upgrade pip build
+
+      - name: Build
+        run: python -m build
+
+      - name: Check metadata
+        run: |
+          python -m pip install --upgrade twine
+          twine check dist/*
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    # Trusted publishing requires the release to originate from main -- a
+    # release cut from any other branch/tag should not be able to ship.
+    if: github.event_name == 'workflow_dispatch' || github.event.release.target_commitish == 'main'
+    environment:
+      name: pypi
+      url: https://pypi.org/project/jev-gc/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

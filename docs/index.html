@@ -530,6 +530,7 @@ for f in findings:
   <li><strong>No network latency.</strong> Real Jev calls cross a network. Batching exists precisely to amortize that, and none of it appears in these timings.</li>
   <li><strong>The archive's eviction path is untested at scale.</strong> <code>released_count</code> is zero at every sweep point; unit tests cover the budget, the benchmark does not.</li>
   <li><strong>The regret analysis has never run against a real pair of agent runs.</strong> The mechanism is implemented and tested; the claim that it surfaces genuine false evictions in production is untested.</li>
+  <li><strong>Token savings are not the same as cost savings under a prefix-based prompt cache.</strong> Evicting or rewriting an early span changes every byte after it, so a provider cache keyed on a shared prefix can miss on the unchanged tail too — a shorter GC'd prompt that keeps invalidating the cache can cost more than a longer, stable one that hits it. This page counts tokens sent, not cached vs. uncached tokens, and does not model any specific provider's cache-keying behavior.</li>
 </ul>
 
 <h2 id="reproduce">Reproduce it</h2>
