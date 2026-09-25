@@ -68,11 +68,9 @@
 </div>
 
 <h2 id="install">Install</h2>
-<p class="kicker">Not yet on PyPI — install from source.</p>
+<p class="kicker"><a href="https://pypi.org/project/jev-gc/">jev-gc is on PyPI</a>.</p>
 
-<pre><code>git clone https://github.com/adigulalkari/Jev_GC
-cd Jev_GC
-pip install -e .</code></pre>
+<pre><code>pip install jev-gc</code></pre>
 
 <p>Optional extras, installable together or separately:</p>
 
@@ -89,9 +87,15 @@ pip install -e .</code></pre>
 </table>
 </div>
 
-<pre><code>pip install -e ".[dev,langgraph]"</code></pre>
+<pre><code>pip install "jev-gc[langgraph]"</code></pre>
 
 <p>You will also need a Jev API key from the TypeSafe dashboard. Without one, jev-gc still runs — every Jev call fails open and the deterministic rules do all the work — but you are then using a recency filter, not a relevance filter.</p>
+
+<p>Contributing, or running the test suite / bundled examples: clone the repo and install in editable mode instead.</p>
+
+<pre><code>git clone https://github.com/adigulalkari/Jev_GC
+cd Jev_GC
+pip install -e ".[dev,langgraph,strands]"</code></pre>
 
 <h2 id="quickstart">Quickstart</h2>
 <p class="kicker">Two ways in, depending on whether you already emit OpenTelemetry spans.</p>
@@ -100,11 +104,14 @@ pip install -e .</code></pre>
 
 <p>This is the intended path. Attach jev-gc to your tracer provider and every span it exports flows through the pipeline automatically — you never construct a span record yourself.</p>
 
-<pre><code>from opentelemetry.sdk.trace import TracerProvider
+<pre><code>import os
+from opentelemetry.sdk.trace import TracerProvider
 from jevgc import JevGC
+from jevgc.config import JevGCConfig
 
 provider = TracerProvider()
-gc = JevGC.from_config("jevgc.yaml")     # reads ${JEV_API_KEY} from the env
+config = JevGCConfig.from_dict({"jev": {"api_key": os.environ["JEV_API_KEY"]}})
+gc = JevGC(config)
 gc.attach_to_tracer_provider(provider)
 
 # ... your agent runs; spans stream in ...
@@ -117,6 +124,8 @@ prompt_context = gc.build_context(
 )</code></pre>
 
 <p><code>build_context</code> is what you splice into your next prompt. Call it once per turn, immediately before you call the model. The <code>task</code> string matters: it is the question Jev scores each span's relevance <em>against</em>, so it should describe what the agent is trying to do right now, not what it was doing at the start of the session.</p>
+
+<p><code>JevGCConfig.from_dict</code> needs no file on disk — the only required key is <code>jev.api_key</code>, everything else defaults (see <a href="#configuration">Configuration</a> below). Prefer a YAML file instead? <code>JevGC.from_config("jevgc.yaml")</code> loads one, but <code>config/jevgc.example.yaml</code> lives in the git repo, not in the PyPI package — if you only ran <code>pip install jev-gc</code>, copy its contents by hand rather than expecting the path to exist.</p>
 
 <h3>If you are not emitting spans</h3>
 
