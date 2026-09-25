@@ -68,11 +68,9 @@
 </div>
 
 <h2 id="install">Install</h2>
-<p class="kicker">Not yet on PyPI — install from source.</p>
+<p class="kicker"><a href="https://pypi.org/project/jev-gc/">jev-gc is on PyPI</a>.</p>
 
-<pre><code>git clone https://github.com/adigulalkari/Jev_GC
-cd Jev_GC
-pip install -e .</code></pre>
+<pre><code>pip install jev-gc</code></pre>
 
 <p>Optional extras, installable together or separately:</p>
 
@@ -89,9 +87,15 @@ pip install -e .</code></pre>
 </table>
 </div>
 
-<pre><code>pip install -e ".[dev,langgraph]"</code></pre>
+<pre><code>pip install "jev-gc[langgraph]"</code></pre>
 
 <p>You will also need a Jev API key from the TypeSafe dashboard. Without one, jev-gc still runs — every Jev call fails open and the deterministic rules do all the work — but you are then using a recency filter, not a relevance filter.</p>
+
+<p>Contributing, or running the test suite / bundled examples: clone the repo and install in editable mode instead.</p>
+
+<pre><code>git clone https://github.com/adigulalkari/Jev_GC
+cd Jev_GC
+pip install -e ".[dev,langgraph,strands]"</code></pre>
 
 <h2 id="quickstart">Quickstart</h2>
 <p class="kicker">Two ways in, depending on whether you already emit OpenTelemetry spans.</p>

@@ -3,6 +3,16 @@
 ## Install
 
 ```bash
+pip install jev-gc
+```
+
+Optional extras: `pip install "jev-gc[langgraph]"` or `"jev-gc[strands]"`.
+
+To run the test suite or the bundled examples from a clone instead:
+
+```bash
+git clone https://github.com/adigulalkari/Jev_GC
+cd Jev_GC
 pip install -e ".[dev,langgraph,strands]"
 ```
 

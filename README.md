@@ -70,6 +70,17 @@ Full rationale in [`SPEC.md`](./SPEC.md).
 ## Install
 
 ```bash
+pip install jev-gc
+```
+
+Optional extras: `pip install "jev-gc[langgraph]"` or `"jev-gc[strands]"` for the
+respective integration hooks.
+
+Contributing or running the examples/tests from a clone instead:
+
+```bash
+git clone https://github.com/adigulalkari/Jev_GC
+cd Jev_GC
 pip install -e ".[dev,langgraph,strands]"
 ```
 
