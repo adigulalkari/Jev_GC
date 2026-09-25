@@ -140,6 +140,16 @@ only in the baseline answer. It's keyword-overlap evidence, not proof of
 causation — a ranked list of evictions worth inspecting and a dial for tuning
 `relevance_keep_threshold`, not a regression gate.
 
+Note what this shadow replay does *not* compare: prompt-cache usage between
+the baseline and GC'd run. Under a prefix-based cache, evicting or rewriting
+an early span changes every later byte's position in the prompt, so the
+unchanged tail can miss the cache too — a shorter, GC'd prompt is not
+automatically a cheaper one if it keeps breaking cache reuse that a stable,
+never-evicted prompt would have kept hitting. `analyze_regret` and the
+benchmarks below report token counts, not cached-vs-uncached input tokens, so
+neither currently answers "does this save money," only "does this save
+tokens" and "did an eviction visibly cost an answer."
+
 ## Docs
 
 - **[adigulalkari.github.io/Jev_GC](https://adigulalkari.github.io/Jev_GC/)** —

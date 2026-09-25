@@ -297,3 +297,13 @@ above.
   decades of span count. Nothing here says what happens at 10,000, and the shape
   of the curve between 1000 and 10,000 is not measured. Any extrapolation beyond
   1000 spans is extrapolation, not measurement.
+- **`tokens_saved_estimate` is not a cost estimate under a prefix-based prompt
+  cache.** This benchmark counts tokens sent per render; it does not model a
+  provider's prompt cache at all. Evicting or rewriting an early span changes
+  every later byte's position in the prompt, so a cache keyed on a shared
+  prefix can miss on the unchanged tail too — turning what looks like a token
+  saving into more *uncached* (i.e. full-price) tokens than a stable,
+  never-evicted prompt would have sent, even though the GC'd prompt is
+  shorter. Neither this script nor `results/benchmark.json` records cached
+  vs. uncached input tokens, so the percentages above say nothing about
+  dollar cost under caching and should not be read as if they did.
