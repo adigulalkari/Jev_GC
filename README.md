@@ -86,12 +86,18 @@ pip install -e ".[dev,langgraph,strands]"
 
 ## Quickstart
 
+No config file needed -- `JevGCConfig` only requires the API key, everything
+else defaults:
+
 ```python
+import os
 from opentelemetry.sdk.trace import TracerProvider
 from jevgc import JevGC
+from jevgc.config import JevGCConfig
 
 provider = TracerProvider()
-gc = JevGC.from_config("jevgc.yaml")            # reads JEV_API_KEY from env
+config = JevGCConfig.from_dict({"jev": {"api_key": os.environ["JEV_API_KEY"]}})
+gc = JevGC(config)
 gc.attach_to_tracer_provider(provider)
 
 # ... agent runs, spans stream in automatically ...
@@ -101,6 +107,11 @@ prompt_context = gc.build_context(
     budget_tokens=8000,
 )
 ```
+
+Prefer a YAML file instead? `JevGC.from_config("jevgc.yaml")` loads one (see
+[`config/jevgc.example.yaml`](./config/jevgc.example.yaml) in this repo --
+note that file ships in the git checkout, not in the PyPI package, so copy
+its contents rather than its path if you only `pip install`ed jev-gc).
 
 No OTel yet? Use the manual escape hatch: `await gc.observe(span_record)`.
 See [`docs/quickstart.md`](./docs/quickstart.md).

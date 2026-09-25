@@ -18,11 +18,36 @@ pip install -e ".[dev,langgraph,strands]"
 
 ## Configure
 
-Copy the example config and point it at your Jev API key:
+Get a Jev API key from the TypeSafe dashboard:
 
 ```bash
-cp config/jevgc.example.yaml jevgc.yaml
-export JEV_API_KEY=...   # from the TypeSafe dashboard
+export JEV_API_KEY=...
+```
+
+`JevGCConfig` only requires `jev.api_key` -- everything else has a default, so
+the fastest path needs no file at all:
+
+```python
+import os
+from jevgc.config import JevGCConfig
+
+config = JevGCConfig.from_dict({"jev": {"api_key": os.environ["JEV_API_KEY"]}})
+```
+
+Prefer a YAML file? `config/jevgc.example.yaml` documents every field and
+ships in this repo -- clone it, or copy its contents into a `jevgc.yaml` of
+your own (that file is not part of the PyPI package, so `pip install jev-gc`
+alone won't put it on disk for you):
+
+```bash
+git clone https://github.com/adigulalkari/Jev_GC   # only needed for this file
+cp Jev_GC/config/jevgc.example.yaml jevgc.yaml
+```
+
+```python
+from jevgc.config import JevGCConfig
+
+config = JevGCConfig.from_yaml("jevgc.yaml")   # interpolates ${JEV_API_KEY} from the env
 ```
 
 ## Wire it to an OTel-instrumented agent
@@ -32,7 +57,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from jevgc import JevGC
 
 provider = TracerProvider()
-gc = JevGC.from_config("jevgc.yaml")
+gc = JevGC(config)
 gc.attach_to_tracer_provider(provider)
 
 # ... agent runs, spans stream in via `provider` ...
